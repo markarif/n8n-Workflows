@@ -1,0 +1,403 @@
+{
+  "name": "AI-Powered System Health Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -800,
+        -128
+      ],
+      "id": "04fd31b1-2fe2-43f2-9b7e-4b2370c0643b",
+      "name": "Daily Midnight Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k",
+          "mode": "list",
+          "cachedResultName": "Workflow_Logs_xm2ule (1)",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 473121874,
+          "mode": "list",
+          "cachedResultName": "Workflow_Logs_xm2ule",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k/edit#gid=473121874"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Failed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -560,
+        -128
+      ],
+      "id": "3225179d-6f67-4c3c-a953-7ac3f0141e4b",
+      "name": "Read Workflow_Logs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "include": "specifiedFields",
+        "fieldsToInclude": "WorkflowName, ErrorMessage",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -128
+      ],
+      "id": "72156cee-3f9a-4117-8758-8008ffcb4de5",
+      "name": "Bundle All Errors"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.4,
+          "maxRetries": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        16,
+        64
+      ],
+      "id": "69a85fa4-5984-4a5d-9d28-81ff1a8682ee",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "zKILB7wAHtzdue9v",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $today }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        80
+      ],
+      "id": "b8fea6ec-f464-41fb-a6fb-2a8454bc1b00",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Review these error logs: {{ JSON.stringify($json.data) }}\n\n1. Identify the workflow causing the most errors.\n2. Summarize the root causes (e.g., \"API Authentication issues\").\n3. Recommend one priority action for the team.\n\nOutput JSON: { \"analysis_summary\": \"string\", \"top_workflow\": \"string\", \"priority_action\": \"string\" }",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        16,
+        -128
+      ],
+      "id": "e1558941-161b-4aab-9268-dd154bc81831",
+      "name": "AI Reliability Analyst"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.output;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\nreturn [{\n  json: {\n    analysis_summary: parsed.analysis_summary,\n    top_workflow: parsed.top_workflow,\n    priority_action: parsed.priority_action\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        -128
+      ],
+      "id": "aa49dad6-5950-420f-8f96-0ce08778d09b",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "sendTo": "linet.shamah@moringaschool.com",
+        "subject": "=Daily System Health:{{ $('Parse AI Output').item.json.top_workflow }}  needs attention.",
+        "emailType": "text",
+        "message": "=Good morning Amani,\n\nYesterday we recorded {{ $json.TotalErrors }} errors.\n\nAnalysis: {{ $json.AI_Analysis }}\n\nRecommended Action: {{ $('Parse AI Output').item.json.priority_action }}\n\nFull logs have been archived in the DailySummaries sheet.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        -128
+      ],
+      "id": "feb6522d-fa99-4887-8274-98bae2e8a528",
+      "name": "Email— Daily Briefing",
+      "webhookId": "c0045a59-fc5f-4450-849a-71bf3233f8e2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jx21msO9A4kXTldt",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "⚠️ WHY THIS NODE MATTERS\nWithout bundling, the AI runs once per error row.\n73 errors = 73 AI calls = slow & costly.\nThis collapses everything into ONE item so the AI\nanalyzes the full picture in a single call.\n\nOutput field name is \"data\" — used in expressions as:\n$('Bundle All Errors').all()[0].json.data.length\nDO NOT rename or skip this node.",
+        "height": 320,
+        "width": 288
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -352,
+        -464
+      ],
+      "typeVersion": 1,
+      "id": "02b4d4ce-8473-4ad3-b52f-6837b69d41ea",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "⚠️ CRITICAL NODE — DO NOT DELETE\nThe AI returns JSON wrapped in markdown code fences.\ne.g. ```json { ... } ```\nThis node strips those fences and converts the\nraw text into a proper JSON object.\n\nWithout this node:\n  → top_workflow = undefined\n  → analysis_summary = undefined\n  → email body = blank\n  → DailySummaries sheet = empty\n\nFields passed downstream:\n  → $json.analysis_summary\n  → $json.top_workflow\n  → $json.priority_action",
+        "height": 320,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        320,
+        -464
+      ],
+      "typeVersion": 1,
+      "id": "ba11c1f5-74b7-481a-8967-806c736cea89",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k",
+          "mode": "list",
+          "cachedResultName": "Workflow_Logs_xm2ule (1)",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1834333532,
+          "mode": "list",
+          "cachedResultName": "DailySummaries",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Po8Ae8ozW6JMv8pQ6qt8_FDgfTsoODovAEzbUm0bI9k/edit#gid=1834333532"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now }}",
+            "TotalErrors": "={{ $('Bundle All Errors').all()[0].json.data.length }}",
+            "AI_Analysis": "={{ $json.analysis_summary }}",
+            "Top_Failing_Workflow": "={{ $json.top_workflow }}"
+          },
+          "matchingColumns": [
+            "Date"
+          ],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TotalErrors",
+              "displayName": "TotalErrors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI_Analysis",
+              "displayName": "AI_Analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Top_Failing_Workflow",
+              "displayName": "Top_Failing_Workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        848,
+        -128
+      ],
+      "id": "094b38c4-be2e-423f-8efe-7571870cd456",
+      "name": "Archive to DailySummaries",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "⚠️ SHEET SETTINGS REMINDER\nOperation:           Append Row (NOT Append or Update)\nColumn to Match On:  Leave EMPTY\nSheet Tab:           DailySummaries (not Workflow_Logs)\n\nTotalErrors expression:\n{{ $('Bundle All Errors').all()[0].json.data.length }}\n\nIf TotalErrors = 0 → check the Aggregate node\noutput field is named exactly \"data\".",
+        "height": 304,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        752,
+        -464
+      ],
+      "typeVersion": 1,
+      "id": "c607b366-7029-4ce7-bd60-c28bdda7ddb4",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Midnight Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Workflow_Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Workflow_Logs": {
+      "main": [
+        [
+          {
+            "node": "Bundle All Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bundle All Errors": {
+      "main": [
+        [
+          {
+            "node": "AI Reliability Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Reliability Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Reliability Analyst",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Reliability Analyst": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Archive to DailySummaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive to DailySummaries": {
+      "main": [
+        [
+          {
+            "node": "Email— Daily Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6b772cfb-7869-4323-8dad-9d1858e23c1c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe150a79434daf2e0ddfbedbfe9754306061a72c8f7f5ddeb6d95267b0e69e06"
+  },
+  "id": "aeEpWFEba1fb3SmW",
+  "tags": []
+}

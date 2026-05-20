@@ -1,0 +1,98 @@
+{
+  "name": "Aqua flow Alert Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aquaflow-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -320,
+        -80
+      ],
+      "id": "f099f7a7-1b87-49da-8ccc-bb3828a4671c",
+      "name": "Webhook",
+      "webhookId": "574c72fc-85ed-4008-8a41-205784764945"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Alert email sent\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        96,
+        -80
+      ],
+      "id": "fc71b07b-97d3-4b63-80db-b4a2503aa558",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "sendTo": "markmuinde78@gmail.com",
+        "subject": "=AquaFlow Pond Alert: {{ $json.body.severity }} - {{ $json.body.alert_type }}",
+        "emailType": "text",
+        "message": "=A new pond alert has been triggered.\n\nPond: {{$json.body.pond_name}}\nSeverity: {{$json.body.severity}}\nAlert Type: {{$json.body.alert_type}}\nMessage: {{$json.body.message}}\nDate: {{$json.body.created_at}}\n\nPlease review the pond conditions immediately.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -112,
+        -80
+      ],
+      "id": "fc7f3e71-c119-45c7-8585-5e04dc3bea1c",
+      "name": "Alert Emails to Pond Manager",
+      "webhookId": "e6b1221b-13e4-41bb-9c3c-3e189f016fc0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jx21msO9A4kXTldt",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Alert Emails to Pond Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Emails to Pond Manager": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2f39ea44-7358-4085-8017-556ffe2f7359",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe150a79434daf2e0ddfbedbfe9754306061a72c8f7f5ddeb6d95267b0e69e06"
+  },
+  "id": "hEM7ySLq5O3oXHzO",
+  "tags": []
+}

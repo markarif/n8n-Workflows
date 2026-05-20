@@ -1,0 +1,762 @@
+{
+  "name": "ACTS Policy Bulk Ingestion and Bot (Smart - Skips Already Ingested)",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        912,
+        -368
+      ],
+      "id": "fb2a85fd-f7d5-45f8-ad86-bb960c6cbdd1",
+      "name": "When Chat Message Received",
+      "webhookId": "acts-chat-test-001"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM",
+          "mode": "list",
+          "cachedResultName": "ACTS Policy Knowledge Base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1136,
+        -368
+      ],
+      "id": "a833ae88-6de2-4902-9c86-28c6aee4ce4a",
+      "name": "Read Knowledge Base",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the question typed in the chat UI\nconst question = $('When Chat Message Received').first().json.chatInput || '';\n\n// All knowledge base chunks come in as individual items\nconst allChunks = $input.all().map(i => i.json);\n\nif (allChunks.length === 0) {\n  return [{\n    json: {\n      question,\n      context: 'The knowledge base is empty. Please run the Bulk Ingestion workflow first.',\n      chunksFound: 0\n    }\n  }];\n}\n\n// Tokenise the question — skip very short/common words\nconst questionWords = question\n  .toLowerCase()\n  .split(/\\W+/)\n  .filter(w => w.length > 2);\n\n// Score each chunk by how many question words it contains\nconst scored = allChunks.map(chunk => {\n  const text  = (chunk.ChunkText || '').toLowerCase();\n  const score = questionWords.reduce((acc, word) => acc + (text.includes(word) ? 1 : 0), 0);\n  return { ...chunk, score };\n});\n\n// Take the top 5 most relevant chunks\nconst top5 = scored\n  .filter(c => c.score > 0)\n  .sort((a, b) => b.score - a.score)\n  .slice(0, 5);\n\n// Fall back to first 3 chunks if nothing matched\nconst chunksToUse = top5.length > 0 ? top5 : allChunks.slice(0, 3);\n\n// Format as a readable context block for the AI\nconst context = chunksToUse\n  .map((c, i) => `[${i + 1}] Document: ${c.DocumentName} | ${c.Section}\\n${c.ChunkText}`)\n  .join('\\n\\n---\\n\\n');\n\nreturn [{ json: { question, context, chunksFound: top5.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -368
+      ],
+      "id": "917225b4-6146-4fd7-aec6-bfd2b2ee78d1",
+      "name": "Find Relevant Chunks"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'STAFF QUESTION:\\n' + $json.question + '\\n\\nPOLICY CONTEXT:\\n' + $json.context }}",
+        "options": {
+          "systemMessage": "You are the ACTS Organization policy assistant. Staff ask you questions about company policies.\n\nRules:\n1. Answer ONLY using the policy context provided. Never guess or invent rules.\n2. If the answer is in the context, give a direct clear answer and mention which document it comes from.\n3. If the context does not contain the answer, say: \"I could not find that in the current policy documents. Please contact HR directly for assistance.\"\n4. Keep every response under 250 words.\n5. Use plain everyday language — no jargon."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1584,
+        -368
+      ],
+      "id": "3929753a-5fc6-4972-9c35-f43f306dd0a6",
+      "name": "Generate Policy Answer"
+    },
+    {
+      "parameters": {
+        "model": "devstral-small-2507",
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.2,
+          "maxRetries": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        1584,
+        -192
+      ],
+      "id": "c09a0171-1e50-416e-9feb-9b2368adebfc",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "zKILB7wAHtzdue9v",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        64,
+        248
+      ],
+      "id": "30e0b937-058d-4c75-8035-56d36a43afe1",
+      "name": "Run Manually"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM",
+          "mode": "list",
+          "cachedResultName": "ACTS Policy Knowledge Base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        288,
+        248
+      ],
+      "id": "8bc9f868-ae41-445c-a00d-f66e5e85a0cd",
+      "name": "Read Existing Knowledge Base",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collapse 118 chunk rows into ONE item containing a list of unique document names.\n// This is critical — without this, the next node (List All Files) would run\n// 118 times (once per chunk row) and produce thousands of duplicate entries.\n\nconst existingNames = $input.all()\n  .map(i => (i.json.DocumentName || '').toLowerCase().trim())\n  .filter(name => name.length > 0);\n\nconst uniqueNames = [...new Set(existingNames)];\n\nconsole.log(`Documents already in knowledge base (${uniqueNames.length}): ${uniqueNames.join(', ')}`);\n\n// Return exactly ONE item — so the next node runs exactly once\nreturn [{ json: { existingDocNames: uniqueNames } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        248
+      ],
+      "id": "8414516a-255c-4c3e-b58b-d3d4d9d7fc67",
+      "name": "Collapse to Unique Doc Names"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "131baW6jBYwGpqrNxln8XriYYcLBgjhhu",
+            "mode": "list",
+            "cachedResultName": "Policy Documents",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/131baW6jBYwGpqrNxln8XriYYcLBgjhhu"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        736,
+        248
+      ],
+      "id": "38e505d4-8417-4248-8a08-3fcbd5cd7440",
+      "name": "List All Files in Folder",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "IhCxEq7H0ZP6oEzO",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-pdf-only",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": ".pdf",
+              "operator": {
+                "type": "string",
+                "operation": "endsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        960,
+        248
+      ],
+      "id": "86445cf0-c0d4-4c2c-9a12-3e22a97141b5",
+      "name": "PDFs Only"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the list of already-ingested document names (from the collapsed single item)\nconst existingNames = new Set(\n  $('Collapse to Unique Doc Names').first().json.existingDocNames || []\n);\n\n// Filter Drive PDFs to only ones not already in the knowledge base\nconst newPDFs = $input.all().filter(item => {\n  const fileName = (item.json.name || '').toLowerCase().trim();\n  return !existingNames.has(fileName);\n});\n\nconsole.log(`PDFs in Drive: ${$input.all().length}`);\nconsole.log(`Already ingested: ${existingNames.size}`);\nconsole.log(`New to process: ${newPDFs.length}`);\nif (newPDFs.length > 0) {\n  console.log(`Will ingest: ${newPDFs.map(i => i.json.name).join(', ')}`);\n}\n\nif (newPDFs.length === 0) {\n  return [{ json: { noNewDocuments: true, message: 'All documents are already in the knowledge base.' } }];\n}\n\nreturn newPDFs;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        248
+      ],
+      "id": "cc2fa8c6-1f27-4e1b-abd7-60fe1e6eeb3f",
+      "name": "Filter New PDFs Only"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-has-new-pdfs",
+              "leftValue": "={{ $json.noNewDocuments }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1408,
+        248
+      ],
+      "id": "4b9883e0-642b-4933-bf89-8e4eb2148b05",
+      "name": "Are There New PDFs?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "asgn-file-id",
+              "name": "fileId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "asgn-file-name",
+              "name": "fileName",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        152
+      ],
+      "id": "05466273-5c78-47c2-a8c1-421fc4f163b9",
+      "name": "Store File Metadata"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.fileId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1856,
+        152
+      ],
+      "id": "2a2d70c6-e6cf-4602-ac06-a36d77850e11",
+      "name": "Download PDF File",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "IhCxEq7H0ZP6oEzO",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        152
+      ],
+      "id": "229f242d-6f9e-4729-8d8c-7dc25b41dcf9",
+      "name": "Extract PDF Text"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "restore-text",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "restore-filename",
+              "name": "fileName",
+              "value": "={{ $('Store File Metadata').item.json.fileName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2304,
+        152
+      ],
+      "id": "5f45aeb7-e7c2-4a13-9ac4-4c757fcddf3b",
+      "name": "Restore Filename"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over all PDFs — chunk each one\nconst results = [];\nconst skipped = [];\n\nfor (const item of $input.all()) {\n  const text     = item.json.text     || '';\n  const fileName = item.json.fileName || 'Unknown Document';\n\n  // Skip PDFs with no extractable text (scanned image PDFs)\n  if (!text.trim()) {\n    skipped.push(fileName);\n    console.log(`SKIPPED (no text): ${fileName} — this is likely a scanned image PDF. Convert it to text-based PDF and re-run.`);\n    continue;\n  }\n\n  const words     = text.split(/\\s+/).filter(w => w.length > 0);\n  const chunkSize = 500;\n  const overlap   = 50;\n\n  let i          = 0;\n  let chunkIndex = 1;\n\n  while (i < words.length) {\n    const chunkWords    = words.slice(i, i + chunkSize);\n    const chunkText     = chunkWords.join(' ');\n    const estimatedPage = Math.ceil((i + 1) / 250);\n\n    results.push({\n      json: {\n        DocumentName: fileName,\n        Section:      'Page ~' + estimatedPage,\n        PageNumber:   String(estimatedPage),\n        ChunkText:    chunkText,\n        ChunkIndex:   chunkIndex,\n        WordCount:    chunkWords.length\n      }\n    });\n\n    i += chunkSize - overlap;\n    chunkIndex++;\n  }\n\n  console.log(`Chunked: ${fileName} → ${chunkIndex - 1} chunks`);\n}\n\nif (skipped.length > 0) {\n  console.log(`Skipped ${skipped.length} scanned PDFs: ${skipped.join(', ')}`);\n}\n\n// If ALL PDFs were scanned and nothing was chunked, return a status item\n// so the workflow ends cleanly instead of crashing\nif (results.length === 0) {\n  return [{ json: {\n    status: 'no_text_extracted',\n    message: `All PDFs were skipped. Scanned PDFs found: ${skipped.join(', ')}. Please convert these to text-based PDFs.`,\n    skippedFiles: skipped\n  }}];\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        152
+      ],
+      "id": "cf55da83-cc69-4481-a469-c95f0d7789e5",
+      "name": "Chunk Text With Overlap"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-has-chunks",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "no_text_extracted",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2752,
+        152
+      ],
+      "id": "77d2d1fa-52df-487a-ad84-8b4e08c28209",
+      "name": "Were Chunks Created?"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM",
+          "mode": "list",
+          "cachedResultName": "ACTS Policy Knowledge Base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VaVG98L8MTSdBt-zxresJ38zj9S5WxcLusd2MFOD6uM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DocumentName": "={{ $json.DocumentName }}",
+            "Section": "={{ $json.Section }}",
+            "PageNumber": "={{ $json.PageNumber }}",
+            "ChunkText": "={{ $json.ChunkText }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "DocumentName",
+              "displayName": "DocumentName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Section",
+              "displayName": "Section",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PageNumber",
+              "displayName": "PageNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ChunkText",
+              "displayName": "ChunkText",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2976,
+        56
+      ],
+      "id": "172c376c-b5b5-4cbe-b626-59e7db6d6a06",
+      "name": "Save Chunk to Knowledge Base",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "scanned-msg",
+              "name": "status",
+              "value": "={{ $json.message }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2976,
+        248
+      ],
+      "id": "a69fdecc-595f-4de0-8c7d-11bb2a66ff45",
+      "name": "Scanned PDF Warning"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skip-msg",
+              "name": "status",
+              "value": "All documents already exist in the knowledge base. Nothing new to ingest.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        344
+      ],
+      "id": "05505f0f-20c6-48c1-8aa4-430af0486bf0",
+      "name": "Nothing New to Process"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Chat Message Received": {
+      "main": [
+        [
+          {
+            "node": "Read Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Find Relevant Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Relevant Chunks": {
+      "main": [
+        [
+          {
+            "node": "Generate Policy Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Policy Answer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Read Existing Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Collapse to Unique Doc Names",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse to Unique Doc Names": {
+      "main": [
+        [
+          {
+            "node": "List All Files in Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List All Files in Folder": {
+      "main": [
+        [
+          {
+            "node": "PDFs Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDFs Only": {
+      "main": [
+        [
+          {
+            "node": "Filter New PDFs Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New PDFs Only": {
+      "main": [
+        [
+          {
+            "node": "Are There New PDFs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Are There New PDFs?": {
+      "main": [
+        [
+          {
+            "node": "Store File Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing New to Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store File Metadata": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Restore Filename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Filename": {
+      "main": [
+        [
+          {
+            "node": "Chunk Text With Overlap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Text With Overlap": {
+      "main": [
+        [
+          {
+            "node": "Were Chunks Created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Were Chunks Created?": {
+      "main": [
+        [
+          {
+            "node": "Save Chunk to Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scanned PDF Warning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "88a1a770-a7e8-43a9-9006-f305e21d7ba0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe150a79434daf2e0ddfbedbfe9754306061a72c8f7f5ddeb6d95267b0e69e06"
+  },
+  "id": "8ljW3TdCJws6ZDQ3",
+  "tags": []
+}

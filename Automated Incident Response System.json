@@ -1,0 +1,544 @@
+{
+  "name": "Automated Incident Response System",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.3,
+          "maxRetries": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -64
+      ],
+      "id": "637e4033-aaf5-4320-9543-55294d2ac6de",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "yDdcWfmkBW3PM9IZ",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.Timestamp }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        -64
+      ],
+      "id": "bf55a4b0-4f01-4167-bff9-2572c3aa14c1",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "content": "Escalation Logic:\n\nIf severity_score = High, the workflow sends an urgent Gmail alert to the CTO.\n\nIf severity_score = Medium or Low, no email is sent. The incident is only documented and logged."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1520,
+        48
+      ],
+      "typeVersion": 1,
+      "id": "0c5c19c8-f458-4b23-88d5-ce849f76f8a0",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        -32
+      ],
+      "id": "9e6bae68-1e18-4f60-a756-c62a9aa8d284",
+      "name": "Schedule Trigger - Hourly Check"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/14SwV2f7Q5eWhBilmD8JBNIhzCJs0qJBbgRwLiI3_IUQ/edit?gid=1813328768#gid=1813328768",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1813328768,
+          "mode": "list",
+          "cachedResultName": "Incident Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14SwV2f7Q5eWhBilmD8JBNIhzCJs0qJBbgRwLiI3_IUQ/edit#gid=1813328768"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        -32
+      ],
+      "id": "098adb78-4e9b-4e07-a593-d5c7fae04b0e",
+      "name": "Google Sheets - Fetch Incidents",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fd6d3de0-6999-40e1-9406-774296f5e75b",
+              "leftValue": "={{ $json['Report Status'] }}",
+              "rightValue": "Pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        -32
+      ],
+      "id": "6c4a123d-fb67-4770-90ed-44eb9d98894f",
+      "name": "IF - Check Pending Status"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the technical logs: {{ $json['Raw Logs'] }}\n\nReturn JSON only using exactly these fields:\n\n{\n  \"post_mortem\": \"professional post-mortem report\",\n  \"severity\": \"High, Medium, or Low\",\n  \"incident_title\": \"short incident title\"\n}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an experienced Site Reliability Engineer. Analyze incident logs, explain what likely went wrong, summarize the impact, and assign severity as Low, Medium, or High. Return JSON only. Do not use markdown."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        736,
+        -288
+      ],
+      "id": "83a5ce4a-11a4-4f70-bc3a-b37551c934c2",
+      "name": "AI Agent - Incident Analysis"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"post_mortem\": \"string\",\n  \"severity\": \"High | Medium | Low\",\n  \"incident_title\": \"string\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        928,
+        -64
+      ],
+      "id": "1c73c87b-ba07-493d-ae9d-8bedeb58ae6b",
+      "name": "Structured Parser - Incident Output"
+    },
+    {
+      "parameters": {
+        "folderId": "16MNXYC-CYkBDY6w6z5wRWi4VyWCqXah5",
+        "title": "={{ $json.output.incident_title }}"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -192
+      ],
+      "id": "a866d20b-e6a0-4bc9-b242-1f223722a479",
+      "name": "Google Docs - Create Report",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "wHtgS8b7ZsbDxuJB",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "=Post-Mortem Report\n\nIncident ID: {{ $('IF - Check Pending Status').item.json['Incident ID'] }}\nTimestamp: {{ $('IF - Check Pending Status').item.json.Timestamp }}\nSeverity: {{ $('AI Agent - Incident Analysis').item.json.output.severity }}\n\nIncident Title: {{ $('AI Agent - Incident Analysis').item.json.output.incident_title }}\n\nDetails:\n{{ $('AI Agent - Incident Analysis').item.json.output.post_mortem }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -192
+      ],
+      "id": "ee4ef31c-8f3f-4d25-9422-adbb8414b948",
+      "name": "Google Docs - Write Report Content",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "wHtgS8b7ZsbDxuJB",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "70351d46-94fb-4dab-842e-9942c43a8f28",
+              "leftValue": "={{ $('AI Agent - Incident Analysis').item.json.output.severity }}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1584,
+        -192
+      ],
+      "id": "949c8690-b995-4f32-9c6a-c39d10dea3c8",
+      "name": "IF - Check High Severity"
+    },
+    {
+      "parameters": {
+        "sendTo": "Markmuinde78@gmail.com",
+        "subject": "=URGENT: High Severity Incident -{{ $('AI Agent - Incident Analysis').item.json.output.incident_title }}",
+        "emailType": "text",
+        "message": "=A high severity incident has been detected.\n\nIncident ID: {{ $('IF - Check Pending Status').item.json['Incident ID'] }}\nSeverity: {{ $('AI Agent - Incident Analysis').item.json.output.severity }}\n\nPost-Mortem Report:\n{{ $('AI Agent - Incident Analysis').item.json.output.post_mortem }}\n\nPlease review immediately.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        -256
+      ],
+      "id": "397567d0-e7ce-438b-b45d-891726abb7f0",
+      "name": "Gmail - Send High Severity Alert",
+      "webhookId": "a8b38470-7cbd-4a45-b562-77be9cb254a1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jx21msO9A4kXTldt",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1xWyDnSNWzVbs_Q9g_QuQk0-NaG6WCttnO3wDopkkLok",
+          "mode": "list",
+          "cachedResultName": "Capstone_Incident_Logs_GoogleSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xWyDnSNWzVbs_Q9g_QuQk0-NaG6WCttnO3wDopkkLok/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 871431428,
+          "mode": "list",
+          "cachedResultName": "Incident Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xWyDnSNWzVbs_Q9g_QuQk0-NaG6WCttnO3wDopkkLok/edit#gid=871431428"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Report Status": "Processed",
+            "Google Doc Link": "=https://docs.google.com/document/d/{{ $json.documentId }}/edit",
+            "Incident ID": "={{ $('Google Sheets - Fetch Incidents').item.json['Incident ID'] }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "Incident ID"
+          ],
+          "schema": [
+            {
+              "id": "Incident ID",
+              "displayName": "Incident ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Raw Logs",
+              "displayName": "Raw Logs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Report Status",
+              "displayName": "Report Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Google Doc Link",
+              "displayName": "Google Doc Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2032,
+        -192
+      ],
+      "id": "5d68a839-a0d3-4e9f-9bec-8fd146f6b902",
+      "name": "Google Sheets - Mark as Processed",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeTxzgKa8FiATXyA",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        800,
+        112
+      ],
+      "id": "26424324-e3ed-4610-8485-46a7541943b2",
+      "name": "No Operation, do nothing"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Incident Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent - Incident Analysis",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger - Hourly Check": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Fetch Incidents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Fetch Incidents": {
+      "main": [
+        [
+          {
+            "node": "IF - Check Pending Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Check Pending Status": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Incident Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Incident Analysis": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Create Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Parser - Incident Output": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent - Incident Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Create Report": {
+      "main": [
+        [
+          {
+            "node": "Google Docs - Write Report Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs - Write Report Content": {
+      "main": [
+        [
+          {
+            "node": "IF - Check High Severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Check High Severity": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send High Severity Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Sheets - Mark as Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Send High Severity Alert": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Mark as Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "37ba9c7a-c147-4665-b203-3e923af8f792",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe150a79434daf2e0ddfbedbfe9754306061a72c8f7f5ddeb6d95267b0e69e06"
+  },
+  "id": "YAdtepcuHvCc9e6q",
+  "tags": []
+}

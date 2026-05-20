@@ -1,0 +1,127 @@
+{
+  "name": "AquaFlow Weekly Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                5
+              ],
+              "triggerAtHour": 17
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -480,
+        -96
+      ],
+      "id": "28a71889-d05a-43f2-9c5a-07383136ce3b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5000/api/reports/weekly-summary",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -272,
+        -96
+      ],
+      "id": "caefa7a3-58d7-4d87-8b7c-5bf193d1bc05",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const records = $input.all().map(item => item.json);\n\nconst totalRecords = records.length;\nconst totalFeed = records.reduce((sum, r) => sum + Number(r.feed_given_kg || 0), 0);\nconst totalMortality = records.reduce((sum, r) => sum + Number(r.mortality_count || 0), 0);\n\nconst latestFive = records.slice(0, 5).map(r => {\n  return `- ${r.pond_name} | Date: ${r.date} | Feed: ${r.feed_given_kg} kg | Mortality: ${r.mortality_count}`;\n}).join(\"\\n\");\n\nconst summary = `\nAquaFlow Weekly Summary\n\nTotal records this period: ${totalRecords}\nTotal feed used: ${totalFeed.toFixed(2)} kg\nTotal mortality: ${totalMortality}\n\nLatest entries:\n${latestFive}\n`;\n\nreturn [\n  {\n    json: {\n      summary\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        -96
+      ],
+      "id": "8a296425-8aec-4a79-8c4a-450317ff28b9",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "markmuinde78@gmail.com",
+        "subject": "AquaFlow Weekly Pond Summary",
+        "emailType": "text",
+        "message": "={{ $json.summary }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        144,
+        -96
+      ],
+      "id": "39240703-e2c8-4b02-8ed2-72e17c18c4a6",
+      "name": "Send a message",
+      "webhookId": "b326b736-2d5e-4a82-a2a7-8f5e594e6242",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jx21msO9A4kXTldt",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0a224b4e-7d40-4ef3-b229-bb58f28761bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe150a79434daf2e0ddfbedbfe9754306061a72c8f7f5ddeb6d95267b0e69e06"
+  },
+  "id": "ATAyqPrFeCZbAIGp",
+  "tags": []
+}
